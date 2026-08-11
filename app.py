@@ -293,11 +293,18 @@ def get_policy():
         })
 
     return jsonify({
-        "version": "2.0",
-        "template": {
-            "outputs": [{"simpleText": {"text": "조건을 선택해주세요."}}]
-        }
-    })
+    "version": "2.0",
+    "template": {
+        "outputs": [{"simpleText": {"text": result}}],
+        "quickReplies": [
+            {
+                "label": "처음으로 🔄",
+                "action": "block",
+                "blockId": "6a79fd47fb99c80dbe85db9f"
+            }
+        ]
+    }
+})
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
