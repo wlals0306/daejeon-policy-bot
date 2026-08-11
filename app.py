@@ -58,7 +58,7 @@ def get_policy():
     utterance = data.get('userRequest', {}).get('utterance', '').strip()
     user_id = data.get('userRequest', {}).get('user', {}).get('id', 'default')
     print(f"utterance: {utterance}, user_id: {user_id}") 
-    
+
     # 세션 초기화
     if user_id not in user_sessions:
         user_sessions[user_id] = {}
@@ -115,4 +115,4 @@ def get_policy():
     })
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(host='0.0.0.0', port=5000)
