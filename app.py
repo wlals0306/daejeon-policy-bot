@@ -196,6 +196,7 @@ def get_policy():
     # 혼인 여부 저장 + 결과 반환
     if utterance in ["미혼", "기혼"]:
         session['marriage'] = utterance
+        print(f"DEBUG session: {session}", flush=True)
 
         age = parse_age(session.get('age', ''))
         status = session.get('status', '')
