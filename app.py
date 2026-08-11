@@ -4,8 +4,32 @@ import os
 app = Flask(__name__)
 
 # ─────────────────────────────────────────────
-# 정책 DB (2026년 대전청년포털 기준)
+# 2026년 기준 중위소득 (단위: 만원/월)
+# ─────────────────────────────────────────────
+MEDIAN_INCOME = {
+    "1인": 256,   # 2,564,238원
+    "2인": 420,   # 4,199,292원
+    "3인 이상": 536,  # 5,359,036원 (3인 기준)
+}
+
+def get_median_income_pct(income_str, household_str):
+    """월소득 문자열 + 가구원 수 → 중위소득 % 반환"""
+    income_map = {
+        "100만원 미만": 90,
+        "100~200만원": 150,
+        "200~300만원": 250,
+        "300만원 이상": 350,
+    }
+    income_val = income_map.get(income_str, 0)
+    median = MEDIAN_INCOME.get(household_str, MEDIAN_INCOME["1인"])
+    if median == 0:
+        return 999
+    return round(income_val / median * 100)
+
+# ─────────────────────────────────────────────
+# 정책 DB (2026년 기준)
 # category: 주거 / 취업 / 자산 / 복지
+# target_median_pct: 중위소득 % 이하 조건 (없으면 제한 없음)
 # ─────────────────────────────────────────────
 policies = [
     # ── 주거 ──────────────────────────────────
@@ -17,7 +41,7 @@ policies = [
         "target_age": [19, 39],
         "target_status": ["재학생", "취업준비생", "재직중"],
         "target_living": ["자취중"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
+        "target_median_pct": 150,
         "note": "무주택 세대주 본인 명의 임대차 계약 필수. 2026년 8월 말 공고 예정.",
         "url": "https://djhousing.or.kr"
     },
@@ -29,7 +53,7 @@ policies = [
         "target_age": [19, 39],
         "target_status": ["재학생", "취업준비생", "재직중"],
         "target_living": ["자취중"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
+        "target_median_pct": 150,
         "note": "대전 주소지 또는 대전 소재 대학·직장 재직자 신청 가능.",
         "url": "https://djhousing.or.kr"
     },
@@ -41,7 +65,6 @@ policies = [
         "target_age": [19, 39],
         "target_status": ["재직중", "취업준비생"],
         "target_living": ["자취중"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원", "300만원 이상"],
         "target_marriage": ["기혼"],
         "note": "신혼부부 대상. 대전청년포털에서 공고 확인 필요.",
         "url": "https://www.daejeonyouthportal.kr"
@@ -55,20 +78,31 @@ policies = [
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원", "300만원 이상"],
         "url": "https://www.djbea.or.kr"
     },
     {
         "name": "청년 도전 지원사업",
         "category": "취업",
-        "description": "구직단념청년 대상 맞춤형 취업 지원 프로그램. 단기(50만원)·중기(최대 150만원)·장기(최대 250만원) 참여 수당 지급.",
+        "description": "구직단념청년 대상 맞춤형 취업 지원 프로그램",
         "support_amount": "단기 50만원 / 중기 최대 150만원 / 장기 최대 250만원",
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
-        "target_income": ["100만원 미만", "100~200만원"],
+        "target_median_pct": 100,
         "note": "최근 6개월 취업·훈련 이력 없는 구직단념청년 대상. 상시 모집.",
         "url": "https://www.djbea.or.kr"
+    },
+    {
+        "name": "국민취업지원제도 1유형 (청년특례)",
+        "category": "취업",
+        "description": "취업지원 서비스 + 구직촉진수당 월 60만원 최대 6개월 지원 (총 최대 360만원). 취업경험 무관.",
+        "support_amount": "월 60만원 × 최대 6개월 (총 최대 360만원)",
+        "target_age": [18, 34],
+        "target_status": ["취업준비생"],
+        "target_living": ["자취중", "가족과 거주"],
+        "target_median_pct": 120,
+        "note": "취업경험 없어도 신청 가능. 고용24(work24.go.kr) 또는 고용센터 신청.",
+        "url": "https://www.work24.go.kr"
     },
     {
         "name": "대전 청년 인턴 사업",
@@ -78,33 +112,44 @@ policies = [
         "target_age": [18, 34],
         "target_status": ["취업준비생", "재학생"],
         "target_living": ["자취중", "가족과 거주"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
+        "target_median_pct": 150,
         "url": "https://www.daejeonyouthportal.kr"
     },
     {
         "name": "청년 행정체험연수",
         "category": "취업",
-        "description": "대전시청·사업소 등에서 5주간 행정 실무 체험. 실지급액 약 157만원(만근 기준, 생활임금 시간당 12,043원 적용).",
-        "support_amount": "약 1,575,380원 (5주 만근 기준)",
+        "description": "대전시청·사업소 등에서 5주간 행정 실무 체험. 실지급액 1,575,380원(만근 기준).",
+        "support_amount": "1,575,380원 (5주 만근 기준)",
         "target_age": [18, 39],
         "target_status": ["재학생", "취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원", "300만원 이상"],
-        "note": "본인 또는 부모가 대전시 주민등록 필수. 연 1회 공고 (2026 하계: 7.1~7.27).",
+        "note": "본인 또는 부모가 대전시 주민등록 필수. 연 1회 공고.",
         "url": "https://www.daejeonyouthportal.kr"
     },
     # ── 자산 ──────────────────────────────────
     {
         "name": "대전 미래두배 청년통장",
         "category": "자산",
-        "description": "근로 청년이 월 10만원 또는 15만원씩 3년 적립하면 대전시가 동일 금액 매칭. 만기 시 최대 720만원+이자 수령.",
+        "description": "근로 청년이 월 10만원씩 3년 적립하면 대전시가 동일 금액 매칭. 만기 시 최대 720만원+이자 수령.",
         "support_amount": "최대 720만원 + 이자 (3년 만기, 1:1 매칭)",
         "target_age": [18, 39],
         "target_status": ["재직중"],
         "target_living": ["자취중", "가족과 거주"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
-        "note": "중위소득 140% 이하 근로 청년. 3개월 이상 근무 필수. 유사 자산형성사업 중복 불가.",
+        "target_median_pct": 140,
+        "note": "3개월 이상 근무 필수. 유사 자산형성사업 중복 불가.",
         "url": "https://youthaccount.or.kr"
+    },
+    {
+        "name": "청년내일저축계좌",
+        "category": "자산",
+        "description": "월 10만원 저축 시 정부가 30만원 매칭. 3년 후 최대 1,440만원+이자 수령.",
+        "support_amount": "최대 1,440만원 + 이자 (3년 만기, 1:3 매칭)",
+        "target_age": [15, 39],
+        "target_status": ["재직중", "재학생"],
+        "target_living": ["자취중", "가족과 거주"],
+        "target_median_pct": 50,
+        "note": "월 10만원 이상 근로·사업소득 필수. 중위소득 50% 이하 가구. 복지로(bokjiro.go.kr) 신청.",
+        "url": "https://www.bokjiro.go.kr"
     },
     # ── 복지 ──────────────────────────────────
     {
@@ -115,7 +160,7 @@ policies = [
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
+        "target_median_pct": 150,
         "target_marriage": ["미혼", "기혼"],
         "url": "https://www.daejeonyouthportal.kr"
     },
@@ -127,7 +172,6 @@ policies = [
         "target_age": [19, 39],
         "target_status": ["재학생", "취업준비생", "재직중"],
         "target_living": ["자취중", "가족과 거주"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원", "300만원 이상"],
         "note": "2026년 7월 모집. 대전청년포털 공지 확인.",
         "url": "https://www.daejeonyouthportal.kr"
     },
@@ -139,7 +183,7 @@ policies = [
         "target_age": [18, 34],
         "target_status": ["재학생"],
         "target_living": ["자취중", "가족과 거주"],
-        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
+        "target_median_pct": 150,
         "note": "대전청년포털 장학금 신청 메뉴에서 확인.",
         "url": "https://www.daejeonyouthportal.kr"
     },
@@ -202,21 +246,24 @@ def get_policy():
         status = session.get('status', '')
         living = session.get('living', '')
         income = session.get('income', '')
+        household = session.get('household', '1인')
         marriage = session.get('marriage', '')
+
+        # 중위소득 % 계산
+        user_median_pct = get_median_income_pct(income, household)
 
         matched = []
         for p in policies:
             age_ok = p['target_age'][0] <= age <= p['target_age'][1]
             status_ok = status in p['target_status']
             living_ok = 'target_living' not in p or living in p['target_living']
-            income_ok = 'target_income' not in p or income in p['target_income']
+            median_ok = 'target_median_pct' not in p or user_median_pct <= p['target_median_pct']
             marriage_ok = 'target_marriage' not in p or marriage in p.get('target_marriage', [marriage])
 
-            if age_ok and status_ok and living_ok and income_ok and marriage_ok:
+            if age_ok and status_ok and living_ok and median_ok and marriage_ok:
                 matched.append(p)
 
         if matched:
-            # 카테고리별 정렬
             category_order = {"주거": 0, "취업": 1, "자산": 2, "복지": 3}
             matched.sort(key=lambda x: category_order.get(x['category'], 9))
 
@@ -231,7 +278,7 @@ def get_policy():
                 if p.get('note'):
                     result += f"   ℹ️ {p['note']}\n"
                 result += "\n"
-            result += "🔗 자세한 내용은 대전청년포털에서 확인하세요!\nhttps://www.daejeonyouthportal.kr"
+            result += "🔗 정책 이름을 복사해서 대전청년포털에서 검색해보세요! 🔍\nhttps://www.daejeonyouthportal.kr"
         else:
             result = "현재 조건에 맞는 정책이 없습니다.\n대전청년포털에서 더 많은 정책을 확인해보세요!\nhttps://www.daejeonyouthportal.kr"
 
@@ -247,8 +294,7 @@ def get_policy():
     return jsonify({
         "version": "2.0",
         "template": {
-            "outputs": [{"simpleText": {"text": "조건을 선택해주세요."}
-            }]
+            "outputs": [{"simpleText": {"text": "조건을 선택해주세요."}}]
         }
     })
 
