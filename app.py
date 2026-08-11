@@ -1,5 +1,4 @@
 from flask import Flask, request, jsonify
-
 import os
 
 app = Flask(__name__)
@@ -10,6 +9,8 @@ policies = [
         "description": "월 최대 20만원 월세 지원",
         "target_age": [19, 39],
         "target_status": ["재학생", "취업준비생"],
+        "target_living": ["자취중"],
+        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
         "url": "https://www.daejeonyouthportal.kr"
     },
     {
@@ -17,6 +18,8 @@ policies = [
         "description": "연 2% 이자 지원",
         "target_age": [19, 39],
         "target_status": ["재학생", "취업준비생", "재직중"],
+        "target_living": ["자취중"],
+        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
         "url": "https://www.daejeonyouthportal.kr"
     },
     {
@@ -24,6 +27,8 @@ policies = [
         "description": "1:1 맞춤 취업 상담 무료 제공",
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
+        "target_living": ["자취중", "가족과 거주"],
+        "target_income": ["100만원 미만", "100~200만원", "200~300만원", "300만원 이상"],
         "url": "https://www.djbea.or.kr"
     },
     {
@@ -31,6 +36,8 @@ policies = [
         "description": "구직단념청년 대상 맞춤형 프로그램",
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
+        "target_living": ["자취중", "가족과 거주"],
+        "target_income": ["100만원 미만", "100~200만원"],
         "url": "https://www.djbea.or.kr"
     },
     {
@@ -38,11 +45,22 @@ policies = [
         "description": "지역기업 인턴 연계 및 수당 지원",
         "target_age": [18, 34],
         "target_status": ["취업준비생", "재학생"],
+        "target_living": ["자취중", "가족과 거주"],
+        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
+        "url": "https://www.daejeonyouthportal.kr"
+    },
+    {
+        "name": "대전 청년수당 (청년내일희망카드)",
+        "description": "미취업 청년 월 50만원 최대 6개월 지원",
+        "target_age": [18, 34],
+        "target_status": ["취업준비생"],
+        "target_living": ["자취중", "가족과 거주"],
+        "target_income": ["100만원 미만", "100~200만원", "200~300만원"],
+        "target_marriage": ["미혼", "기혼"],
         "url": "https://www.daejeonyouthportal.kr"
     }
 ]
 
-# 사용자 세션 저장 (간단한 딕셔너리 방식)
 user_sessions = {}
 
 def parse_age(age_str):
@@ -59,9 +77,7 @@ def get_policy():
     data = request.get_json()
     utterance = data.get('userRequest', {}).get('utterance', '').strip()
     user_id = data.get('userRequest', {}).get('user', {}).get('id', 'default')
-    print(f"utterance: {utterance}, user_id: {user_id}") 
 
-    # 세션 초기화
     if user_id not in user_sessions:
         user_sessions[user_id] = {}
 
@@ -75,18 +91,41 @@ def get_policy():
     if utterance in ["재학생", "취업준비생", "재직중"]:
         session['status'] = utterance
 
-    # 거주지 저장 + 결과 반환
+    # 거주지 저장
     if utterance in ["동구", "중구", "서구", "유성구", "대덕구"]:
         session['district'] = utterance
 
+    # 자취 여부 저장
+    if utterance in ["자취중", "가족과 거주"]:
+        session['living'] = utterance
+
+    # 월소득 저장
+    if utterance in ["100만원 미만", "100~200만원", "200~300만원", "300만원 이상"]:
+        session['income'] = utterance
+
+    # 가구원 수 저장
+    if utterance in ["1인", "2인", "3인 이상"]:
+        session['household'] = utterance
+
+    # 혼인 여부 저장 + 결과 반환
+    if utterance in ["미혼", "기혼"]:
+        session['marriage'] = utterance
+
         age = parse_age(session.get('age', ''))
         status = session.get('status', '')
+        living = session.get('living', '')
+        income = session.get('income', '')
+        marriage = session.get('marriage', '')
 
         matched = []
         for p in policies:
             age_ok = p['target_age'][0] <= age <= p['target_age'][1]
             status_ok = status in p['target_status']
-            if age_ok and status_ok:
+            living_ok = 'target_living' not in p or living in p['target_living']
+            income_ok = 'target_income' not in p or income in p['target_income']
+            marriage_ok = 'target_marriage' not in p or marriage in p['target_marriage']
+
+            if age_ok and status_ok and living_ok and income_ok and marriage_ok:
                 matched.append(p)
 
         if matched:
@@ -98,7 +137,6 @@ def get_policy():
         else:
             result = "현재 조건에 맞는 정책이 없습니다.\n대전청년포털에서 더 많은 정책을 확인해보세요!\nhttps://www.daejeonyouthportal.kr"
 
-        # 세션 초기화
         user_sessions[user_id] = {}
 
         return jsonify({
@@ -108,7 +146,6 @@ def get_policy():
             }
         })
 
-    # 기본 응답
     return jsonify({
         "version": "2.0",
         "template": {
