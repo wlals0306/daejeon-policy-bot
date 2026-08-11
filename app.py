@@ -230,7 +230,6 @@ def get_policy():
                 result += f"   💰 {p['support_amount']}\n"
                 if p.get('note'):
                     result += f"   ℹ️ {p['note']}\n"
-                result += f"   🔗 {p['url']}\n"
                 result += "\n"
             result += "🔗 자세한 내용은 대전청년포털에서 확인하세요!\nhttps://www.daejeonyouthportal.kr"
         else:
