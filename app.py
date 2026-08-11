@@ -7,13 +7,12 @@ app = Flask(__name__)
 # 2026년 기준 중위소득 (단위: 만원/월)
 # ─────────────────────────────────────────────
 MEDIAN_INCOME = {
-    "1인": 256,   # 2,564,238원
-    "2인": 420,   # 4,199,292원
-    "3인 이상": 536,  # 5,359,036원 (3인 기준)
+    "1인": 256,
+    "2인": 420,
+    "3인 이상": 536,
 }
 
 def get_median_income_pct(income_str, household_str):
-    """월소득 문자열 + 가구원 수 → 중위소득 % 반환"""
     income_map = {
         "100만원 미만": 90,
         "100~200만원": 150,
@@ -22,170 +21,145 @@ def get_median_income_pct(income_str, household_str):
     }
     income_val = income_map.get(income_str, 0)
     median = MEDIAN_INCOME.get(household_str, MEDIAN_INCOME["1인"])
-    if median == 0:
-        return 999
     return round(income_val / median * 100)
 
-# ─────────────────────────────────────────────
-# 정책 DB (2026년 기준)
-# category: 주거 / 취업 / 자산 / 복지
-# target_median_pct: 중위소득 % 이하 조건 (없으면 제한 없음)
-# ─────────────────────────────────────────────
+BLOCK_ID_START = "6a79fd47fb99c80dbe85db9f"
+
+QUICK_REPLY_START = {
+    "label": "처음으로 🔄",
+    "action": "block",
+    "blockId": BLOCK_ID_START
+}
+
 policies = [
     # ── 주거 ──────────────────────────────────
     {
         "name": "대전 청년 월세 지원",
         "category": "주거",
-        "description": "무주택 청년 가구 월세 최대 20만원, 최대 12개월 지원 (생애 1회)",
         "support_amount": "월 최대 20만원 × 최대 12개월",
         "target_age": [19, 39],
         "target_status": ["재학생", "취업준비생", "재직중"],
         "target_living": ["자취중"],
         "target_median_pct": 150,
         "note": "무주택 세대주 본인 명의 임대차 계약 필수. 2026년 8월 말 공고 예정.",
-        "url": "https://djhousing.or.kr"
     },
     {
         "name": "청년 주택임차보증금 이자 지원",
         "category": "주거",
-        "description": "전세·월세 보증금 대출 이자 연 2% 지원 (최대 1억 보증금, 월세 60만원 이하)",
         "support_amount": "연 2% 이자 지원",
         "target_age": [19, 39],
         "target_status": ["재학생", "취업준비생", "재직중"],
         "target_living": ["자취중"],
         "target_median_pct": 150,
         "note": "대전 주소지 또는 대전 소재 대학·직장 재직자 신청 가능.",
-        "url": "https://djhousing.or.kr"
     },
     {
         "name": "청년 신혼부부 주택 전세자금 대출 이자 지원",
         "category": "주거",
-        "description": "신혼부부 전세자금 대출 이자 지원",
         "support_amount": "이자 지원 (세부 공고 확인)",
         "target_age": [19, 39],
         "target_status": ["재직중", "취업준비생"],
         "target_living": ["자취중"],
         "target_marriage": ["기혼"],
         "note": "신혼부부 대상. 대전청년포털에서 공고 확인 필요.",
-        "url": "https://www.daejeonyouthportal.kr"
     },
     # ── 취업 ──────────────────────────────────
     {
         "name": "대전 청년 취업 컨설팅",
         "category": "취업",
-        "description": "1:1 맞춤 취업 상담 무료 제공 (이력서·면접·직무 등)",
         "support_amount": "무료",
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
-        "url": "https://www.djbea.or.kr"
     },
     {
         "name": "청년 도전 지원사업",
         "category": "취업",
-        "description": "구직단념청년 대상 맞춤형 취업 지원 프로그램",
         "support_amount": "단기 50만원 / 중기 최대 150만원 / 장기 최대 250만원",
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
         "target_median_pct": 100,
         "note": "최근 6개월 취업·훈련 이력 없는 구직단념청년 대상. 상시 모집.",
-        "url": "https://www.djbea.or.kr"
     },
     {
         "name": "국민취업지원제도 1유형 (청년특례)",
         "category": "취업",
-        "description": "취업지원 서비스 + 구직촉진수당 월 60만원 최대 6개월 지원 (총 최대 360만원). 취업경험 무관.",
         "support_amount": "월 60만원 × 최대 6개월 (총 최대 360만원)",
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
         "target_median_pct": 120,
         "note": "취업경험 없어도 신청 가능. 고용24(work24.go.kr) 또는 고용센터 신청.",
-        "url": "https://www.work24.go.kr"
     },
     {
         "name": "대전 청년 인턴 사업",
         "category": "취업",
-        "description": "지역기업 인턴 연계 및 수당 지원",
         "support_amount": "인턴 수당 지원 (세부 공고 확인)",
         "target_age": [18, 34],
         "target_status": ["취업준비생", "재학생"],
         "target_living": ["자취중", "가족과 거주"],
         "target_median_pct": 150,
-        "url": "https://www.daejeonyouthportal.kr"
     },
     {
         "name": "청년 행정체험연수",
         "category": "취업",
-        "description": "대전시청·사업소 등에서 5주간 행정 실무 체험. 실지급액 1,575,380원(만근 기준).",
         "support_amount": "1,575,380원 (5주 만근 기준)",
         "target_age": [18, 39],
         "target_status": ["재학생", "취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
         "note": "본인 또는 부모가 대전시 주민등록 필수. 연 1회 공고.",
-        "url": "https://www.daejeonyouthportal.kr"
     },
     # ── 자산 ──────────────────────────────────
     {
         "name": "대전 미래두배 청년통장",
         "category": "자산",
-        "description": "근로 청년이 월 10만원씩 3년 적립하면 대전시가 동일 금액 매칭. 만기 시 최대 720만원+이자 수령.",
         "support_amount": "최대 720만원 + 이자 (3년 만기, 1:1 매칭)",
         "target_age": [18, 39],
         "target_status": ["재직중"],
         "target_living": ["자취중", "가족과 거주"],
         "target_median_pct": 140,
         "note": "3개월 이상 근무 필수. 유사 자산형성사업 중복 불가.",
-        "url": "https://youthaccount.or.kr"
     },
     {
         "name": "청년내일저축계좌",
         "category": "자산",
-        "description": "월 10만원 저축 시 정부가 30만원 매칭. 3년 후 최대 1,440만원+이자 수령.",
         "support_amount": "최대 1,440만원 + 이자 (3년 만기, 1:3 매칭)",
         "target_age": [15, 39],
         "target_status": ["재직중", "재학생"],
         "target_living": ["자취중", "가족과 거주"],
         "target_median_pct": 50,
-        "note": "월 10만원 이상 근로·사업소득 필수. 중위소득 50% 이하 가구. 복지로(bokjiro.go.kr) 신청.",
-        "url": "https://www.bokjiro.go.kr"
+        "note": "월 10만원 이상 근로·사업소득 필수. 복지로(bokjiro.go.kr) 신청.",
     },
     # ── 복지 ──────────────────────────────────
     {
         "name": "대전 청년수당 (청년내일희망카드)",
         "category": "복지",
-        "description": "미취업 청년 월 50만원, 최대 6개월 지원 (총 최대 300만원)",
         "support_amount": "월 50만원 × 최대 6개월",
         "target_age": [18, 34],
         "target_status": ["취업준비생"],
         "target_living": ["자취중", "가족과 거주"],
         "target_median_pct": 150,
         "target_marriage": ["미혼", "기혼"],
-        "url": "https://www.daejeonyouthportal.kr"
     },
     {
         "name": "2026 청년 맞춤형 재무 상담서비스",
         "category": "복지",
-        "description": "청년 대상 무료 1:1 재무·금융 상담 서비스",
         "support_amount": "무료",
         "target_age": [19, 39],
         "target_status": ["재학생", "취업준비생", "재직중"],
         "target_living": ["자취중", "가족과 거주"],
-        "note": "2026년 7월 모집. 대전청년포털 공지 확인.",
-        "url": "https://www.daejeonyouthportal.kr"
+        "note": "대전청년포털 공지 확인.",
     },
     {
         "name": "대전시 인재육성 장학사업",
         "category": "복지",
-        "description": "대전시 청년 대학생 대상 장학금 지원 및 국외 진로탐방 프로그램",
         "support_amount": "장학금 (금액 공고 확인)",
         "target_age": [18, 34],
         "target_status": ["재학생"],
         "target_living": ["자취중", "가족과 거주"],
         "target_median_pct": 150,
         "note": "대전청년포털 장학금 신청 메뉴에서 확인.",
-        "url": "https://www.daejeonyouthportal.kr"
     },
 ]
 
@@ -213,31 +187,19 @@ def get_policy():
 
     session = user_sessions[user_id]
 
-    # 나이 저장
     if any(x in utterance for x in ["18~24", "25~29", "30~34", "35~39"]):
         session['age'] = utterance
-
-    # 취업상태 저장
     if utterance in ["재학생", "취업준비생", "재직중"]:
         session['status'] = utterance
-
-    # 거주지 저장
     if utterance in ["동구", "중구", "서구", "유성구", "대덕구"]:
         session['district'] = utterance
-
-    # 자취 여부 저장
     if utterance in ["자취중", "가족과 거주"]:
         session['living'] = utterance
-
-    # 월소득 저장
     if utterance in ["100만원 미만", "100~200만원", "200~300만원", "300만원 이상"]:
         session['income'] = utterance
-
-    # 가구원 수 저장
     if utterance in ["1인", "2인", "3인 이상"]:
         session['household'] = utterance
 
-    # 혼인 여부 저장 + 결과 반환
     if utterance in ["미혼", "기혼"]:
         session['marriage'] = utterance
         print(f"DEBUG session: {session}", flush=True)
@@ -249,7 +211,6 @@ def get_policy():
         household = session.get('household', '1인')
         marriage = session.get('marriage', '')
 
-        # 중위소득 % 계산
         user_median_pct = get_median_income_pct(income, household)
 
         matched = []
@@ -279,39 +240,27 @@ def get_policy():
                 if p.get('note'):
                     result += f"   ℹ️ {p['note']}\n"
                 result += "\n"
-            result += "🔗 정책 이름을 복사해서 대전청년포털에서 검색해보세요! 🔍\nhttps://www.daejeonyouthportal.kr"
+            result += "🔍 정책 이름을 복사해서 대전청년포털에서 검색해보세요!\nhttps://www.daejeonyouthportal.kr"
         else:
             result = "현재 조건에 맞는 정책이 없습니다.\n대전청년포털에서 더 많은 정책을 확인해보세요!\nhttps://www.daejeonyouthportal.kr"
 
         user_sessions[user_id] = {}
 
         return jsonify({
-    "version": "2.0",
-    "template": {
-        "outputs": [{"simpleText": {"text": "조건을 선택해주세요."}}],
-        "quickReplies": [
-            {
-                "label": "처음으로 🔄",
-                "action": "block",
-                "blockId": "6a79fd47fb99c80dbe85db9f"
+            "version": "2.0",
+            "template": {
+                "outputs": [{"simpleText": {"text": result}}],
+                "quickReplies": [QUICK_REPLY_START]
             }
-        ]
-    }
-})
+        })
 
     return jsonify({
-    "version": "2.0",
-    "template": {
-        "outputs": [{"simpleText": {"text": result}}],
-        "quickReplies": [
-            {
-                "label": "처음으로 🔄",
-                "action": "block",
-                "blockId": "6a79fd47fb99c80dbe85db9f"
-            }
-        ]
-    }
-})
+        "version": "2.0",
+        "template": {
+            "outputs": [{"simpleText": {"text": "조건을 선택해주세요."}}],
+            "quickReplies": [QUICK_REPLY_START]
+        }
+    })
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 8080))
