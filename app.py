@@ -267,7 +267,8 @@ def get_policy():
             category_order = {"주거": 0, "취업": 1, "자산": 2, "복지": 3}
             matched.sort(key=lambda x: category_order.get(x['category'], 9))
 
-            result = f"✅ 총 {len(matched)}개 정책이 해당됩니다!\n\n"
+            result = f"📋 입력 조건: {session.get('age','')} / {status} / {living} / {household}가구 / 중위소득 약 {user_median_pct}%\n\n"
+            result += f"✅ 총 {len(matched)}개 정책이 해당됩니다!\n\n"
             current_category = None
             for i, p in enumerate(matched, 1):
                 if p['category'] != current_category:
